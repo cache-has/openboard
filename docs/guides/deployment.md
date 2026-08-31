@@ -49,23 +49,39 @@ extend it.
 
 ```bash
 # From a checkout of this repository:
-docker build -t orrery-base:1.4.0 .
+docker build -t orrery-base:2.0.1 .
+```
+
+Or skip the build entirely and extend the published image, which is the same
+artifact this repository's release pipeline pushes:
+
+```dockerfile
+FROM cachehorizon/orrery:2.0.1
 ```
 
 The base image:
 
 - builds the TypeScript, prunes dev dependencies, and runs under `tini`;
-- uses a glibc base (`node:20-slim`) because DuckDB ships prebuilt glibc
+- uses a glibc base (`node:22-slim`) because DuckDB ships prebuilt glibc
   binaries — do not switch to Alpine/musl;
+- requires Node.js >= 22 (Orrery 2.x); pin the base tag, never `:latest`;
 - defaults to `WORKDIR /workspace`, which downstream images overlay with their
   own config.
 
 Push it to your registry:
 
 ```bash
-docker tag orrery-base:1.4.0 <registry>/orrery-base:1.4.0
-docker push <registry>/orrery-base:1.4.0
+docker tag orrery-base:2.0.1 <registry>/orrery-base:2.0.1
+docker push <registry>/orrery-base:2.0.1
 ```
+
+> **Mirroring the published image into a private registry.** Two things bite here.
+> The image is `linux/amd64`-only, so an arm64 workstation must pull with
+> `--platform linux/amd64` or you will mirror an image your host cannot run. And
+> prefer a plain `docker pull` + `docker tag` + `docker push` over a
+> registry-to-registry copy (`docker buildx imagetools create`): the copy streams
+> silently and stalls on slow uplinks, while `docker push` is resumable, retries
+> per layer, and shows progress.
 
 > Replace `<registry>` with your registry host, e.g.
 > `<account-id>.dkr.ecr.<region>.amazonaws.com`. Never hard-code an account id or
@@ -80,7 +96,7 @@ usually *not* baked in — see step 3.
 
 ```dockerfile
 # Dockerfile (your analytics project)
-FROM <registry>/orrery-base:1.4.0
+FROM <registry>/orrery-base:2.0.1
 
 WORKDIR /workspace
 COPY orrery.config.yaml ./
@@ -197,7 +213,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Configure cloud credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -319,6 +335,50 @@ This pattern works with any IdP: an internal SSO hub, Okta, Auth0, Cognito,
 Google Workspace, or an OAuth2 proxy such as `oauth2-proxy`. Orrery only cares
 about the two resulting headers.
 
+### Health checks and process supervision
+
+Running the proxy and Orrery in one container creates a failure mode worth
+designing against up front: **only the proxy binds the exposed port.** A default
+TCP health check therefore probes the proxy, which keeps answering whether or
+not Orrery is alive — so a crashed Orrery reads as a healthy instance and never
+gets replaced. In one real deployment this turned a single crash into roughly 28
+hours of 502s with no automated signal.
+
+Two fixes; use both.
+
+**1. Health-check an HTTP path that actually reaches Orrery.** Give the proxy an
+auth-exempt liveness route that proxies a real request through to Orrery and
+returns 503 when Orrery does not answer. It must skip auth — any authenticated
+path just redirects the prober to your login URL and measures nothing.
+
+```
+protocol: HTTP        path: /healthz
+interval: 10s         timeout: 5s
+healthy threshold: 1  unhealthy threshold: 3
+```
+
+**2. Supervise both processes.** Do not `exec` the proxy as PID 1 with Orrery
+backgrounded — that is exactly what lets Orrery die unnoticed. Run both as
+children of a small supervisor that polls them and exits non-zero the moment
+either one dies, so the platform replaces the instance. Run that supervisor
+under `tini -g` so `SIGTERM` reaches the whole process group on shutdown.
+
+```sh
+node /app/dist/cli/index.js serve --port 3001 --project /workspace ... &
+ORRERY_PID=$!
+node /proxy/index.mjs &                                    # binds 3000
+PROXY_PID=$!
+
+while :; do
+  kill -0 "$ORRERY_PID" 2>/dev/null || { kill -TERM "$PROXY_PID";  exit 1; }
+  kill -0 "$PROXY_PID"  2>/dev/null || { kill -TERM "$ORRERY_PID"; exit 1; }
+  sleep 2
+done
+```
+
+The health check catches an Orrery that is up but not serving; the supervisor
+catches one that exited outright. Neither substitutes for the other.
+
 ## Production checklist
 
 - [ ] Base image built and pushed for the Orrery version you run.
@@ -333,4 +393,8 @@ about the two resulting headers.
 - [ ] The proxy strips client-supplied `x-orrery-*` headers and forwards
       WebSocket upgrades.
 - [ ] Orrery's own port is not publicly reachable — only the proxy is.
+- [ ] Health check is HTTP against an auth-exempt path that reaches Orrery — not
+      a TCP check against the proxy's port.
+- [ ] If proxy and Orrery share a container, a supervisor exits non-zero when
+      either process dies (do not `exec` the proxy as PID 1).
 - [ ] CI uses OIDC (no stored cloud keys); registry URL resolved at runtime.
