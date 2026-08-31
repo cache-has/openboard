@@ -6,3 +6,5 @@ dist/
 coverage/
 .DS_Store
 .idea
+# Staged at pack time by scripts/stage-editor-client.mjs
+/editor-client/

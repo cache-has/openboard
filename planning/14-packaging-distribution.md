@@ -160,14 +160,25 @@ The `package.json` is minimal:
 
 ## Release Process
 
-> **Current state (2026-06-15):** the release pipeline is **Docker-only**. A `v*` tag
-> triggers `.github/workflows/release.yml`, which builds and pushes the server image to
-> GHCR (single-platform `linux/amd64`, no OS-specific/native builds). **npm/npx
-> publishing is not set up yet** — the `npx orrery` / `npm install orrery` usage shown
-> above in this doc, the README, and other docs is aspirational until the npm publish
-> step exists. Future work: add an npm-publish job (and `create-orrery`), then reconcile
-> the install instructions. Note publishing under the Orrery name is also gated on
-> trademark clearance (see `planning/rename-to-orrery.md`).
+> **Current state (2026-08-30):** a `v*` tag triggers
+> `.github/workflows/release.yml`, which now runs three jobs: GitHub Release,
+> Docker build/push (single-platform `linux/amd64`), and **npm publish via OIDC
+> trusted publishing** (no `NPM_TOKEN`; requires the trusted publisher to be
+> registered on npmjs.com first).
+>
+> **The package is published as `@horizon-analytic/orrery`, not `orrery`.** The
+> unscoped `orrery` name is held by an empty `0.0.0` placeholder published by
+> user `wighawag` on 2023-11-23. npm's disputes policy does not transfer names
+> for squatting — only for trademark claims — so the scoped name is the path
+> that does not depend on trademark clearance landing first. The `bin` is still
+> named `orrery`, so `npx orrery <cmd>` continues to work unchanged once the
+> package is a dependency.
+>
+> Publishing under the Orrery name at all remains gated on trademark clearance
+> (see `planning/rename-to-orrery.md`).
+>
+> Still outstanding: `create-orrery`, and `orrery create` is a stub
+> (`src/cli/create.ts`) even though `templates/default/` ships in the tarball.
 
 The intended full pipeline once npm publishing is set up:
 
@@ -182,6 +193,9 @@ The intended full pipeline once npm publishing is set up:
 - **0.x.y** — Pre-1.0 development. Breaking changes expected.
 - **1.0.0** — When the DSL is stable and we're confident in the API
 - Semver after 1.0: breaking DSL changes = major, new features = minor, fixes = patch
+- A drop in the supported Node.js floor (`engines.node`) is also a **major**, even
+  with no DSL change — it breaks installs for existing users. 2.0.0 was cut for
+  exactly this reason: `>=18` -> `>=22`.
 
 ## License
 
@@ -189,13 +203,13 @@ MIT — maximum adoption, no barriers.
 
 ## Acceptance Criteria
 
-- [ ] `npm install orrery` works and provides CLI commands
+- [x] `npm install @horizon-analytic/orrery` works and provides CLI commands
 - [ ] `npm create orrery` scaffolds a working project
 - [ ] Scaffolded project runs with `npx orrery dev` immediately
 - [ ] Docker image builds and runs correctly
 - [ ] `orrery` works as both local devDependency and global install
 - [ ] Package size is reasonable (< 50MB installed)
 - [ ] GitHub Actions workflows are included in the npm package
-- [ ] Release pipeline: changeset → version → publish → Docker push
+- [x] Release pipeline: version bump → tag → GitHub Release + npm publish + Docker push (changesets still not used)
 - [ ] .gitignore in scaffolded projects excludes `.env`, `node_modules/`, `dist/`
 - [ ] `create-orrery` offers to scaffold GitHub Actions workflow files (deferred from phase 10)

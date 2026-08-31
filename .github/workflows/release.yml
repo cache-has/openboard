@@ -13,14 +13,17 @@ on:
   push:
     tags: ["v*"]
 
+# Least-privilege default. Individual jobs widen this as needed; note the npm
+# job additionally needs `id-token: write` for OIDC trusted publishing.
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 jobs:
   release:
     name: Create Release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
 
@@ -38,6 +41,9 @@ jobs:
   docker:
     name: Docker
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v7
 
@@ -72,3 +78,64 @@ jobs:
             ghcr.io/cache-has/orrery:${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  npm:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    permissions:
+      # Required for OIDC trusted publishing. This is what replaces NPM_TOKEN —
+      # GitHub mints a short-lived token that npm exchanges for publish rights,
+      # so there is no long-lived secret to leak or rotate.
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      # Node >= 22.14 and npm >= 11.5.1 are hard requirements for OIDC trusted
+      # publishing. ubuntu-latest ships an older npm than the Node 22 line
+      # bundles, so pin npm explicitly rather than trusting the runner image.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: "https://registry.npmjs.org"
+      - run: npm install -g npm@latest
+
+      - run: npm ci
+
+      # Guard: the tag is the release's identity, but package.json is what
+      # actually gets published. If they disagree, someone tagged without
+      # bumping (or bumped without retagging) and the wrong version would ship.
+      - name: Verify tag matches package.json version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME implies version $TAG_VERSION, but package.json says $PKG_VERSION."
+            exit 1
+          fi
+          echo "Tag and package.json agree on $PKG_VERSION."
+
+      # Re-verify before publishing. A tag can be pushed at any commit, so do
+      # not assume the CI workflow already gated this exact tree.
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+      # Idempotency guard. npm versions are immutable, so republishing an
+      # existing one is a hard error that would fail the whole release even
+      # when the GitHub Release and Docker jobs succeeded. Skipping keeps a
+      # re-run of a partially-failed release green, and lets a version that was
+      # published manually (as 2.0.0 was, to bootstrap the trusted publisher)
+      # still carry a matching tag and GitHub Release.
+      - name: Publish to npm
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "$NAME@$VERSION is already on the registry - skipping publish."
+            exit 0
+          fi
+          # --provenance mints a signed attestation tying the tarball to this
+          # workflow run, which npm surfaces on the package page.
+          npm publish --provenance

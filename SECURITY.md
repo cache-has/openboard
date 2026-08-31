@@ -2,8 +2,11 @@
 
 ## Supported Versions
 
-Orrery is pre-1.0 and under active development. Security fixes are applied to
-the latest `main` and the most recently published release.
+Security fixes are applied to the latest `main` and the most recently published
+release. Older release lines do not receive backported fixes — upgrade to the
+current release to pick up security updates.
+
+Orrery 2.x requires Node.js >= 22. The 1.x line is no longer maintained.
 
 ## Reporting a Vulnerability
 

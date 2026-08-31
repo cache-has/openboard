@@ -1,6 +1,6 @@
 {
-  "name": "orrery",
-  "version": "1.4.1",
+  "name": "@horizon-analytic/orrery",
+  "version": "2.0.1",
   "description": "Open-source, code-defined BI dashboards. Dashboards as code, not clicks.",
   "type": "module",
   "main": "dist/index.js",
@@ -27,7 +27,9 @@
     "format:check": "prettier --check 'src/**/*.ts' 'test/**/*.ts'",
     "typecheck": "tsc --noEmit",
     "validate": "tsx src/cli/validate.ts",
-    "build:grammar": "node scripts/build-grammar.mjs"
+    "build:grammar": "node scripts/build-grammar.mjs",
+    "prepack": "npm run build && node scripts/stage-editor-client.mjs",
+    "postpack": "node scripts/stage-editor-client.mjs --clean"
   },
   "keywords": [
     "dashboard",
@@ -92,5 +94,22 @@
       "esbuild": "^0.28.2"
     },
     "uuid": "^11.1.1"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cache-has/orrery.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cache-has/orrery/issues"
+  },
+  "homepage": "https://github.com/cache-has/orrery#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "editor-client",
+    "actions",
+    "templates"
+  ]
 }
