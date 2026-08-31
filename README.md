@@ -360,7 +360,7 @@ See `examples/pagila/README.md` for a fully working setup with the Pagila Postgr
 
 ## Requirements
 
-- Node.js >= 18
+- Node.js >= 22
 - A supported SQL database
 
 ## Contributing

@@ -12,11 +12,7 @@
     "declaration": false,
     "sourceMap": true,
     "outDir": "dist",
-    "rootDir": ".",
-    "baseUrl": ".",
-    "paths": {
-      "@orrery/*": ["../../src/*"]
-    }
+    "rootDir": "."
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
   "exclude": ["node_modules", "dist"]

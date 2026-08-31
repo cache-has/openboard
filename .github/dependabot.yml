@@ -12,9 +12,32 @@ updates:
       development-dependencies:
         dependency-type: "development"
 
+  # The Armillary sink plugin has its own package.json / lockfile. Dependabot
+  # treats each manifest directory independently, so without this entry the
+  # plugin only ever receives security PRs, never routine version updates.
+  - package-ecosystem: "npm"
+    directory: "/plugins/armillary"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      production-dependencies:
+        dependency-type: "production"
+      development-dependencies:
+        dependency-type: "development"
+
   # Keep the versions of GitHub Actions used in CI up to date.
   - package-ecosystem: "github-actions"
     directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # The workflow templates under actions/ ship as part of the product, so keep
+  # their pinned action versions current too. Dependabot treats each directory
+  # independently; "/" above only covers .github/workflows.
+  - package-ecosystem: "github-actions"
+    directory: "/actions"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5

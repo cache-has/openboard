@@ -42,6 +42,8 @@ Orrery is an open-source, code-defined BI dashboard tool. Engineers and PMs defi
 | [20-web-editor-backend.md](20-web-editor-backend.md) | Editor routes, save/validate/connections APIs, `editor.enabled` flag | [x] Core backend complete (docs + proxy-warning deferred to 16) |
 | [21-web-editor-frontend.md](21-web-editor-frontend.md) | CodeMirror 6 editor page, dashboard list, save UX | [x] Complete (Playwright E2E deferred to 16) |
 | [22-board-language-mode.md](22-board-language-mode.md) | `.board` syntax highlighting, autocomplete, inline lint | [x] Complete (E2E deferred to 16) |
+| [24-connection-pool-error-handling.md](24-connection-pool-error-handling.md) | Unhandled `pg.Pool` error event crashes the server on `statement_timeout` | [ ] Proposed — **critical**, found in prod v1.4.1 |
+| [25-echarts-6-1-patch.md](25-echarts-6-1-patch.md) | ECharts 6.0.0 → 6.1.0, clearing GHSA-fgmj-fm8m-jvvx (`lines` tooltip XSS) | [ ] Proposed — **security**, lockfile-only, minutes |
 
 ## Phase Timeline
 

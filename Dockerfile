@@ -11,7 +11,7 @@
 # container (files never change). If/when a dedicated `serve` subcommand is
 # added upstream, swap the CMD to use it.
 
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 
 # Native deps for better-sqlite3. DuckDB ships prebuilt glibc binaries — requires
 # a glibc-based image (NOT alpine/musl).
@@ -34,7 +34,7 @@ RUN npm run build
 RUN npm prune --omit=dev
 
 
-FROM node:20-slim
+FROM node:22-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends tini ca-certificates \
     && rm -rf /var/lib/apt/lists/*
